@@ -1,0 +1,522 @@
+---
+title: "Final"
+output: html_document
+date: "2024-12-13"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Project 1
+```{r}
+  # Reading in files
+ppg <- read.csv('ppg2008.csv')
+rownames(ppg) <- ppg[,1]
+ppg<- ppg[,-1]
+ppg2<- read.csv('ppg2008.csv')
+```
+
+```{r}
+  # Installing/calling necessary packages
+#install.packages('Rtsne')
+library(Rtsne)
+library(ggplot2)
+```
+
+```{r}
+  # Performing t-SNE dimension reduction
+ppg_tsne <- Rtsne(ppg, perplexity = 16)
+
+  # Plotting values resulting from dimension reduction
+tsne_df <- data.frame(
+  X = ppg_tsne$Y[, 1],
+  Y = ppg_tsne$Y[, 2]
+)
+ggplot(tsne_df, aes(X,Y))+
+  geom_point()
+
+  # Instaling packages necessary for PCA 
+#install.packages("factoextra")
+library(factoextra)
+
+ppg_pca<- princomp(ppg)
+  # Getting an idea of the PCA results by looking and loadings and visualizing it
+summary(ppg_pca)
+ppg_pca$loadings[,1:4]
+fviz_pca_var(ppg_pca)
+
+```
+
+  Based on these PCA results, the top 4 components are explained most by number of games, portion of team 3 pt attempts the player contributed, total rebounds and field goal attempts. These components encapsulate 95 percent of the data, so they will be analyzed further.
+
+```{r}
+  # Isolating the desired stats and cleaning up data presentation
+pca_iso_col <- as.matrix(cbind(ppg$G,ppg$X3PA,ppg$TRB,ppg$FGA))
+rownames(pca_iso_col)<- rownames(ppg)
+colnames(pca_iso_col) <- c('G','X3PA','TRB','FGA')
+cor(pca_iso_col[,1:4],pca_iso_col[,1:4], method = 'pearson')
+
+  # Performing k-means clustering on the isolated data
+  # First, the number of clusters need to be determined by how much the within cluster sum of squares is reduced with k clusters
+k.max <- 15
+wss <- sapply(1:k.max, 
+              function(k){kmeans(pca_iso_col, k, nstart=50,iter.max = 15)$tot.withinss})
+plot(1:k.max, wss,
+     type="b", pch = 19, frame = FALSE, 
+     xlab="Number of clusters K",
+     ylab="Total within-clusters sum of squares")
+
+  # installing/calling packages for color scheme
+#install.packages("wesanderson")
+library(wesanderson)
+
+  # Performing k-means and plotting the clusters of each variable against the others
+km_clust<- kmeans(pca_iso_col[,1:4],3)
+
+ggplot(data = pca_iso_col, aes(x = G, y = X3PA, color = as.factor(km_clust$cluster))) +
+  geom_point(size = 3)+
+  scale_color_manual(values = wes_palette("Moonrise3",5,type = "discrete"),name = "Player Cluster") +
+  labs(title = "Player Grouping Based on Games and X3PA ",
+       x = "Number of Games Played",
+       y = "% Contribution To Total Team 3 Point Attempts")+
+  geom_text(size = 3, label= rownames(ppg), check_overlap = TRUE, nudge_x = 0.5, nudge_y = -0.5)
+
+ggplot(data = pca_iso_col, aes(x = G, y = TRB, color = as.factor(km_clust$cluster))) +
+  geom_point(size = 3)+
+  scale_color_manual(values = wes_palette("Moonrise3",5,type = "discrete"),name = "Player Cluster") +
+  labs(title = "Player Grouping Based on Games and TRB ",
+       x = "Number of Games Played",
+       y = 'Total Rebounds')+
+  geom_text(size = 3, label= rownames(ppg), check_overlap = TRUE, nudge_x = 0.5, nudge_y = -0.5)
+
+
+ggplot(data = pca_iso_col, aes(x = G, y = FGA, color = as.factor(km_clust$cluster))) +
+  geom_point(size = 3)+
+  scale_color_manual(values = wes_palette("Moonrise3",5,type = "discrete"),name = "Player Cluster") +
+  labs(title = "Player Grouping Based on Games and FGA ",
+       x = "Number of Games Played",
+       y = 'Field Goal Attempts')+
+  geom_text(size = 3, label= rownames(ppg), check_overlap = TRUE, nudge_x = 0.5, nudge_y = -0.5)
+
+ggplot(data = pca_iso_col, aes(x = X3PA, y = TRB, color = as.factor(km_clust$cluster))) +
+  geom_point(size = 3)+
+  scale_color_manual(values = wes_palette("Moonrise3",5,type = "discrete"),name = "Player Cluster") +
+  labs(title = "Player Grouping Based on X3PA and TRB ",
+       x = "% Contribution To Total Team 3 Point Attempts",
+       y = 'Total Rebounds')+
+  geom_text(size = 3, label= rownames(ppg), check_overlap = TRUE, nudge_x = 0.5, nudge_y = -0.5)
+
+
+ggplot(data = pca_iso_col, aes(x = X3PA, y = FGA, color = as.factor(km_clust$cluster))) +
+  geom_point(size = 3)+
+  scale_color_manual(values = wes_palette("Moonrise3",5,type = "discrete"),name = "Player Cluster") +
+  labs(title = "Player Grouping Based on X3PA and FGA ",
+       x = "% Contribution to Team 3 Point Attempts",
+       y = 'Field Goal Attempts')+
+  geom_text(size = 3, label= rownames(ppg), check_overlap = TRUE, nudge_x = 0.5, nudge_y = -0.5)
+
+
+ggplot(data = pca_iso_col, aes(x = TRB, y = FGA, color = as.factor(km_clust$cluster))) +
+  geom_point(size = 3)+
+  scale_color_manual(values = wes_palette("Moonrise3",5,type = "discrete"),name = "Player Cluster") +
+  labs(title = "Player Grouping Based on TRB and FGA ",
+       x = "Total Rebound",
+       y = 'Field Goal Attempts')+
+  geom_text(size = 3, label= rownames(ppg), check_overlap = TRUE, nudge_x = 0.5, nudge_y = -0.5)
+
+```
+  Based on these findings, it is fair to say that using this data set as is for unbiased analysis of these players is unsuitable. Firstly, the t-SNE reduction produced a set of points to define each of the 50 players, but upon plotting them, there is no pattern to be discerned in the plot. And with multiple runs of the program, the variety of points/plots did not produce any more information than the first one. Because of this, a PCA reduction was performed, which revealed that more than 95% of the variation in the data could be captured by the first four components. These components were explained most by Games Played, % Contribution To Total Team 3 Point Attempts, Total Rebound, and Field Goal Attempts, respectively. The data was then clustered using k-means. The cluster number was determined using the "elbow" method, which showed the optimal number of clusters may be 2, but I opted for 3 to be sure that any patterns were revealed. However, the k-means clustering did not reveal any relationship between these variables either. The first three graphs have clear clusters, but there is no correlation between them. The last three graphs do not have sensible clustering, as some points that belong to one cluster are somehow in the midst of another cluster, and overall there is no pattern or correlation between the points. Additionally, this data set is not a good candidate for GLMs either, as the response variable would be a name. Even when being coerced by using as.factor(), it not possible. I believe that this data is lacking an additional factor, which is related to each players playing style or their position, so that they're grouped already in that manner and subsequent analysis can be performed then. Or perhaps, this is a data set where context in which it was collected is completely understood by the analyzer. Some other factors that seem important to consider are: the market (team/location) from which the players come from, players' body metrics, injury, and the fact that the way someone plays a sport is unique so a catch-all comparison between players will almost always neglect a few statistics or niche knowledge is needed to pick the right ones for analysis. 
+
+
+#Project 2
+##1.
+```{r}
+  # Reading in data and separating it by digit
+trains <- read.csv("train.csv")
+trainslabel <- list()
+  for (x in c(0:9)){
+    trainslabel[[as.character(x)]] <- trains[which(trains[,1]==x),]
+    trainslabel[[as.character(x)]] <- trainslabel[[as.character(x)]][,-1] # Removing label column for easier processing in average pixel calculation
+    }
+  names(trainslabel) = c("zero","one","two","three","four","five","six","seven","eight","nine")
+
+  # Applying PCA to all digit data sets
+all_trains_pca <- lapply(trainslabel,function(x)princomp(x))
+random_col_selection <- sample(c(1:784),1)
+singledig_frompca <-list()
+for (j in names(trainslabel)){
+  singledig_frompca[[j]] <- as.data.frame( sort(all_trains_pca[[j]][["loadings"]][,random_col_selection],decreasing = TRUE) )
+  colnames(singledig_frompca[[j]]) <- "Loading Value"
+  }
+
+  # Calling the necessary libraries and plotting the amount of variance explained by each of the principal components (Scree Plot) 
+library(ggplot2)
+varexp <- as.matrix(((all_trains_pca[["two"]][["sdev"]])^2) / sum(all_trains_pca[["two"]][["sdev"]]))
+
+qplot(c(1:784), varexp) + 
+  geom_line() + 
+  xlab("Principal Component") + 
+  ylab("Proportion of Variance Explained") +
+  ggtitle("Scree Plot") +
+  scale_y_continuous( breaks = seq(0,max(varexp),by=1))+
+  geom_vline(xintercept = 85)+
+  geom_hline(yintercept = 0.1)
+```
+  Based on this scree plot, it can be estimated that about 85 pixels/components are needed to reasonably reproduce the image. The captured variance drops off and levels out ar around component 85, indicated by the vertical line, where the scree plot intersects with the horizontal like that indicates the 10% cutoff, as determined by my guess about how much data should be retained to achieve this task (90%). The graph goes up to 17 because some of the components are able to explain more than one pixel.
+
+##2.
+
+
+```{r}
+  # Isolation of a single image of the number 2 (784 pixels), which matches the same random column pulled for PCA in the previous cell, to form tree
+t2r <- trainslabel[["two"]][random_col_selection,]
+singledig_frompca[["two"]]$rawpixels <- rep(0)   # Initializing a column in the data frame to add the raw pixels
+
+  # Matching the pixels ordered by their loading value to their raw value and putting both in the same data frame
+matches <- match( rownames(singledig_frompca[["two"]]), colnames(t2r))
+for( mtch in matches){
+  singledig_frompca[["two"]]$rawpixels[mtch] <- t2r[1, mtch]}
+
+  # This is the new matrix for the image. The number of pixels has been reduced to 81, as the square root of the number of pixels that were needed to reasonably reproduce this image is a fraction. 9 is the closest whole number.
+keptpixels <- matrix(as.matrix(singledig_frompca[["two"]]$rawpixels)[1:81,],ncol=9,nrow=9)
+write.csv(keptpixels, file = 'keptpixels.csv', row.names = FALSE)
+
+distanced<- dist(as.matrix(t(trainslabel[["two"]])))
+pixelclust <- hclust(distanced,method ='complete')
+plot(pixelclust, cex = 0.3, ylab ="Euclildean Distance", main = 'Pixel Relationships', xlab = "Digit Two Pixels", sub = NA)
+
+```
+
+  Surprisingly, all the pixels that were retained are exactly the same. These are what the PCA determined were the most important pixels. Based on this, I predict that these are actually the white pixels in the image that actually create what we see as a number. Without these pixels, the screen would be black. One may expect slight variation to account for the gray pixels that create the border between the digit and background, as those pixels are close to white, but they are disposable since black contrasts white enough to make the image visible. 
+##3.
+```{r}
+  # Setting up the test and training data. The number of rows for each number's data frame is reduced to match the lowest out of all of the data sets, to ensure fairness in separating the data. Labels for the digit are also added to each data frame.
+trainslabel1 <- lapply(trainslabel,function(x)x[1:3795,])
+for (i in seq_along(trainslabel1)) {
+  trainslabel1[[i]]$label <- rep(i-1, nrow(trainslabel1[[i]]))  
+}
+  # Random sampling of numbers to indicate which rows will be used for the training set. Should be commented out after the first run to 
+  # prevent changes to subsequent data.
+trainingrows<- sample(3795,(3795/2))
+trainingtrains<- lapply(trainslabel1,function(x)subset(x[trainingrows,]))
+testtrains <- lapply(trainslabel1, function(x)x[-trainingrows,])
+
+  # Checking to see if data is normally distributed
+qqs<- lapply(trainslabel1,function(g)qqnorm(as.matrix(g))) # none of the data is normally distributed
+
+  # and var > mean so quasipoisson
+lapply(trainslabel1,function(df)mean(unlist(df)))
+lapply(trainslabel1,function(d)var(unlist(d)))
+```
+
+
+The GLM couldn't converge for any of the data sets, presumably due to the large number of variables. I will reduce them based on the PCA reduction, using the same method used for two (in chunk 7). 
+```{r}
+  # ZERO
+t0r <- trainslabel1[["zero"]][random_col_selection,]
+singledig_frompca[["zero"]]$rawpixels <- rep(0)   
+matches0 <- match( rownames(singledig_frompca[["zero"]]), colnames(t0r))
+for( mtch0 in matches0){
+  singledig_frompca[["zero"]]$rawpixels[mtch0] <- t0r[1, mtch0]}
+singledig_frompca[["zero"]]$label <- 0
+
+  # ONE
+t1r <- trainslabel1[["one"]][random_col_selection,]
+singledig_frompca[["one"]]$rawpixels <- rep(0)   
+matches1 <- match( rownames(singledig_frompca[["one"]]), colnames(t1r))
+for( mtch1 in matches1){
+  singledig_frompca[["one"]]$rawpixels[mtch1] <- t1r[1, mtch1]}
+singledig_frompca[["one"]]$label <- 1
+
+  # adding label for two
+singledig_frompca[["two"]]$label <- 2
+
+  # three
+t3r <- trainslabel1[["three"]][random_col_selection,]
+singledig_frompca[["three"]]$rawpixels <- rep(0)   
+matches3 <- match( rownames(singledig_frompca[["three"]]), colnames(t3r))
+for( mtch3 in matches3){
+  singledig_frompca[["three"]]$rawpixels[mtch3] <- t3r[1, mtch3]}
+singledig_frompca[["three"]]$label <- 3
+
+
+  # four
+t4r <- trainslabel[["four"]][random_col_selection,]
+singledig_frompca[["four"]]$rawpixels <- rep(0)   
+matches4 <- match( rownames(singledig_frompca[["four"]]), colnames(t4r))
+for( mtch4 in matches4){
+  singledig_frompca[["four"]]$rawpixels[mtch4] <- t4r[1, mtch4]}
+singledig_frompca[["four"]]$label <- 4
+
+  # five
+t5r <- trainslabel[["five"]][random_col_selection,]
+singledig_frompca[["five"]]$rawpixels <- rep(0)   
+matches5 <- match( rownames(singledig_frompca[["five"]]), colnames(t5r))
+for( mtch5 in matches5){
+  singledig_frompca[["five"]]$rawpixels[mtch5] <- t5r[1, mtch5]}
+singledig_frompca[["five"]]$label <- 5
+
+  # six
+t6r <- trainslabel[["six"]][random_col_selection,]
+singledig_frompca[["six"]]$rawpixels <- rep(0)   
+matches6 <- match( rownames(singledig_frompca[["six"]]), colnames(t6r))
+for( mtch6 in matches6){
+  singledig_frompca[["six"]]$rawpixels[mtch0] <- t6r[1, mtch6]}
+singledig_frompca[["six"]]$label <- 6
+
+  # seven
+t7r <- trainslabel[["seven"]][random_col_selection,]
+singledig_frompca[["seven"]]$rawpixels <- rep(0)   
+matches7 <- match( rownames(singledig_frompca[["seven"]]), colnames(t7r))
+for( mtch7 in matches7){
+  singledig_frompca[["seven"]]$rawpixels[mtch7] <- t7r[1, mtch7]}
+singledig_frompca[["seven"]]$label <- 7
+
+  # eight
+t8r <- trainslabel[["eight"]][random_col_selection,]
+singledig_frompca[["eight"]]$rawpixels <- rep(0)   
+matches8 <- match( rownames(singledig_frompca[["eight"]]), colnames(t8r))
+for( mtch8 in matches8){
+  singledig_frompca[["eight"]]$rawpixels[mtch8] <- t8r[1, mtch8]}
+singledig_frompca[["eight"]]$label <- 8
+
+  # nine
+t9r <- trainslabel[["nine"]][random_col_selection,]
+singledig_frompca[["nine"]]$rawpixels <- rep(0)   
+matches9 <- match( rownames(singledig_frompca[["nine"]]), colnames(t9r))
+for( mtch9 in matches9){
+  singledig_frompca[["nine"]]$rawpixels[mtch9] <- t0r[1, mtch9]}
+singledig_frompca[["nine"]]$label<- 9
+
+
+  # running GLMs to get models of data to use for prediction
+glms<- list(glm0 <- glm(label~.,family = quasipoisson(link = "log"),data = singledig_frompca[["zero"]][c(1:81),c(2:3)]),
+  glm1 <- glm(label~.,family = quasipoisson(link = "log"),data = singledig_frompca[["one"]][c(1:81),c(2:3)]),
+  glm2 <- glm(label~.,family = quasipoisson(link = "log"),data = singledig_frompca[["two"]][c(1:81),c(2:3)]),
+  glm3 <- glm(label~.,family = quasipoisson(link = "log"),data = singledig_frompca[["three"]][c(1:81),c(2:3)]),
+  glm4 <- glm(label~.,family = quasipoisson(link = "log"),data = singledig_frompca[["four"]][c(1:81),c(2:3)]),
+  glm5 <- glm(label~.,family = quasipoisson(link = "log"),data = singledig_frompca[["five"]][c(1:81),c(2:3)]),
+  glm6 <- glm(label~.,family = quasipoisson(link = "log"),data = singledig_frompca[["six"]][c(1:81),c(2:3)]),
+  glm7 <- glm(label~.,family = quasipoisson(link = "log"),data = singledig_frompca[["seven"]][c(1:81),c(2:3)]),
+  glm8 <- glm(label~.,family = quasipoisson(link = "log"),data = singledig_frompca[["eight"]][c(1:81),c(2:3)]),
+  glm9 <- glm(label~.,family = quasipoisson(link = "log"),data = singledig_frompca[["nine"]][c(1:81),c(2:3)]))
+names(glms)<- names(trainslabel)
+
+coeffs <- unlist(lapply(glms,function(x)x[["coefficients"]]))
+```
+
+```{r}
+  # Function to ID image based on the coefficient since none of the GLMs provided an equation. If the coefficient from the input is +/- 0.15 of any coefficient from the models, the digit it is closest to will be reported.
+
+image_id <- function(pixeldata, coeffs) {
+  user <- glm(label ~ ., family = quasipoisson(link = "log"), data = pixeldata)  
+  user_coeffs <- user$coefficients                   
+  for (user_coeff in user_coeffs) {
+    matching_coeffs <- coeffs[abs(coeffs - user_coeff) <= 0.15]             
+    if (length(matching_coeffs) > 0) {
+       # Pulling matching names from named coefficient vector
+      matching_names <- names(matching_coeffs)     
+        # Remove the intercept and any NA values
+      matching_names <- matching_names[matching_names != "(Intercept)" & !is.na(matching_names)]        
+      if (length(matching_names) > 0) {
+        print(paste("This is predicted to be digit:", paste(matching_names[1], collapse = ", ")))
+        break
+      }
+    }
+  }
+}
+
+library(jpeg)  
+  handwritten<-list( 
+    img0<- readJPEG("0.jpg"),
+    img1 <- readJPEG("1.jpg"),
+    img2 <- readJPEG("2.jpg"),
+    img3 <- readJPEG("3.jpg"),
+    img4 <- readJPEG("4.jpg"),
+    img5 <- readJPEG("5.jpg"),
+    img6 <- readJPEG("6.jpg"),
+    img7 <- readJPEG("7.jpg"),
+    img8 <- readJPEG("8.jpg"),
+    img9 <- readJPEG("9.jpg"))
+for (i in seq_along(handwritten)) {
+  handwritten[[i]] <- as.data.frame(cbind(handwritten[[i]], label = i))
+}
+names(handwritten)<- c(0:9)
+
+print("Test Set:")
+image_id(testtrains[["zero"]],coeffs = coeffs)
+image_id(testtrains[["one"]],coeffs = coeffs)
+image_id(testtrains[["two"]],coeffs = coeffs)
+image_id(testtrains[["three"]],coeffs = coeffs)
+image_id(testtrains[["four"]],coeffs = coeffs)
+image_id(testtrains[["five"]],coeffs = coeffs)
+image_id(testtrains[["six"]],coeffs = coeffs)
+image_id(testtrains[["seven"]],coeffs = coeffs)
+image_id(testtrains[["eight"]],coeffs = coeffs)
+image_id(testtrains[["nine"]],coeffs = coeffs)
+
+print("Handwritten:")
+image_id(handwritten[["0"]],coeffs)
+image_id(handwritten[["1"]],coeffs)
+image_id(handwritten[["2"]],coeffs)
+image_id(handwritten[["3"]],coeffs)
+image_id(handwritten[["4"]],coeffs)
+image_id(handwritten[["5"]],coeffs)
+image_id(handwritten[["6"]],coeffs)
+image_id(handwritten[["7"]],coeffs)
+image_id(handwritten[["8"]],coeffs)
+image_id(handwritten[["9"]],coeffs)
+```
+
+##4. 
+Here, I attempted to make a linear model to predict each digit based on its matrix. I had a lot of trouble with optimizing this, as the models do not converge. In light of this, I made an attempt to train a model using the caret package (shown below), which ultimately failed because of how large the data set is. Therefore, I attempted to use the GLM coefficients to predict the digit. The models were made using the pixels isolated in PCA, as the models would not produce any information with the raw pixel data. I am not sure of how to get the function to work in an apply type wrapper or how to make the results print more neatly, but it does work for some of the digits. Given that sensitivity = TruePos/TruePos+FalseNeg and specifity = TrueNeg/TrueNegFalsePos, I don't believe I can do these calculations with the data I have, and perhaps that is a key identifier for a classifier/test of this sort. Because the model can only be correct or not, there are no negatives, only true and false positives. However, this "model" is correct 8/10 times in the test and is able to predict the digits from my handwriting 4/8 times. I believe the model would work better if I could find a way to group the pixels without losing dimensions so that the GLMs could converge.
+
+
+```{r}#
+install.packages("caret")
+library(caret)
+ Setting up the test and training data. The number of rows for each number's data frame is reduced to match the lowest out of all of the data sets, to ensure fairness in separating the data. Labels for the digit are also added to each data frame.
+trainslabel1 <- lapply(trainslabel,function(x)x[1:3795,])
+for (i in seq_along(trainslabel1)) {
+  trainslabel1[[i]]$label <- rep(i-1, nrow(trainslabel1[[i]]))  
+}
+trainslabel1 <- lapply(trainslabel1,function(x)x[,-786])
+
+  - Random sampling of numbers to indicate which rows will be used for the training set. Should be commented out after the first run to 
+ -  prevent changes to subsequent data.
+ trainingrows<- sample(3795,(3795/2))
+trainingtrains<- lapply(trainslabel1,function(x)subset(x[trainingrows,]))
+testtrains <- lapply(trainslabel1, function(x)x[-trainingrows,])
+
+model <- train(label ~.,
+               data = as.data.frame(trainingtrains[["zero"]]),
+               method = "bayesglm",
+               na.action = na.omit,
+               trControl = trainControl(method = 'none'))
+```
+
+#Project 3
+```{r}
+  # Calling necessary packages
+#install.packages("BiocManager")
+BiocManager::install("preprocessCore")
+```
+
+##1.
+```{r}
+  # Reading in data
+mrna <- read.csv("Mnemiopsis_count_data.csv")
+rownames(mrna) <- mrna[,1]
+mrna <- mrna[,-1]
+mrna1<- mrna
+
+  # Removing low expressing genes based on an average expression value of =< 1
+mrna1$averages <- apply(mrna1, 1,function(x)mean(x))
+mrna1<- mrna1[mrna1$averages >= 1,]
+
+  # Normalizing data using quantiles and checking that all column averages are the same
+library(preprocessCore)
+normalized_mrna1<- normalize.quantiles(as.matrix(mrna1))
+colnames(normalized_mrna1) <- colnames(mrna1)
+rownames(normalized_mrna1) <- rownames(mrna1)
+normalized_mrna1 <- normalized_mrna1[,-9]     # removing column that held averages, as it is no longer necessary
+colMeans(normalized_mrna1)
+
+  # Creating distance trees using Spearman and Euclidean Distance
+
+pcor_NormMrna1 <- as.dist(1-cor(t(normalized_mrna1),method = "spearman")/2)
+pcor_NormMrna1_clst <- hclust(pcor_NormMrna1,method = "complete")
+plot(pcor_NormMrna1_clst, cex = 0.3, ylab ="Spearman Correlation Distance", main = 'Mnemiopsis Gene Expression Values', xlab = "Genes", sub = NA)
+
+
+distanced<- dist(normalized_mrna1)
+ppg_clst <- hclust(distanced,method ='complete')
+plot(ppg_clst, hang = -1, cex = 0.3, ylab ="Euclildean Distance", main = 'Mnemiopsis Gene Expression', xlab = "Genes", sub = NA)
+
+pcor_NormMrna2 <- as.dist(1-cor(normalized_mrna1, method = "spearman")/2)
+pcor_NormMrna2_clst <- hclust(pcor_NormMrna2, method = "complete")
+plot(pcor_NormMrna2_clst, cex = 1, ylab ="Spearman Correlation Distance", main = 'Mnemiopsis Gene Expression', xlab = "Gene Group", sub = NA)
+
+distanced<- dist(t(normalized_mrna1))
+ppg_clst <- hclust(distanced,method ='complete')
+plot(ppg_clst, hang = -1, cex = 1, ylab ="Euclildean Distance", main = 'Mnemiopsis Gene Expression', xlab = "Gene Group", sub = NA)
+
+```
+##2.
+```{r}
+  # Installing necessary packages for heat map
+#install.packages("pheatmap")
+```
+```{r}
+# Calling necessary packages and creating heat map
+library(pheatmap)
+library(RColorBrewer)
+pheatmap(normalized_mrna1, col = colorRampPalette(brewer.pal(n= 9, name = 'BuPu'))(256), scale = "row", fontsize_row = 1, cluster_cols = pcor_NormMrna2_clst,cluster_rows = pcor_NormMrna1_clst, legend_breaks =c(-2,0,2), legend_labels = c("lower","medium","high"), main = 'Aboral and Oral Gene Expression Levels' )
+
+```
+##3.
+###a.
+```{r}
+  # Installing packages necessary
+#BiocManager::install("DESeq2")
+```
+```{r} 
+  # Calling necessary packages and preparing RNA count data for analysis
+library(DESeq2)
+mrna2 <- read.csv("Mnemiopsis_count_data.csv")
+rownames(mrna2) <- mrna2[,1]
+mrna2<- mrna2[,-1]
+
+colsdata <- read.csv("Mnemiopsis_col_data.csv")
+rownames(colsdata) <- colsdata[,1]
+rownames(colsdata) <- sub('-','',rownames(colsdata))
+colsdata<- colsdata[,-1]
+colnames(colsdata)[2]<- "group"      # condition changed to group for compatibility with Glimma 
+
+  # Creating DESeq data set
+des_mrna<- DESeqDataSetFromMatrix(countData = mrna2,
+                                  colData = colsdata,
+                                  design=~group)
+
+  # Isolating the genes with average expression >=1
+keptcounts <- rowMeans(counts(des_mrna))>=1
+des_mrna<- des_mrna[keptcounts,]
+
+  # Running DESeq analysis, storing results, and creating a results data frame
+des_mrna <- DESeq(des_mrna)
+rez<- results(des_mrna, alpha = 0.05)
+rez_df <- as.data.frame(rez)
+
+  # Subsetting the log fold change adjusted p-value, and base mean columns for further manipulation
+lfc_padj_subset <- data.frame(l2fc = rez_df$log2FoldChange,
+                            padj = rez_df$padj,
+                            basemean = rez_df$baseMean)
+rownames(lfc_padj_subset)<-rownames(rez_df)
+most_changing <- lfc_padj_subset[order(lfc_padj_subset$l2fc, decreasing = TRUE),]
+
+
+  # Listing the names of the genes that are the "most-changing", meaning that they had the greatest log fold change
+rownames(head(most_changing[,'l2fc',drop=FALSE],10))
+```
+###b.
+```{r}
+  # Identifying the top 5 housekeeping genes. This was done by finding the midpoint of the log fold change column (as the data is already ordered) and taking the ten genes above and below that. This represents genes that are continuously expressed as the log fold change in counts is close to zero. The names of the gene highest counts were pulled from an ordered basemean column, and is reported.
+mid<- length(most_changing$l2fc)/2
+hk_genes <- rbind(most_changing[mid+c(1:10),],most_changing[mid-c(1:10),])
+hk_genes <- hk_genes[order(hk_genes$basemean,decreasing = TRUE),]
+rownames(head(hk_genes[,'basemean', drop=FALSE]),5)
+```
+  
+```{r message=FALSE}
+  # Installing necessary packages for DESeq visualization
+#BiocManager::install("Glimma")
+```
+```{r}
+  # Calling necessary packages for DESeq visualization
+library(Glimma)
+glimmaMA(des_mrna)
+```
+
+###c/d/e.
+  The findings made in the midterm and with this DESeq analysis are perfectly consistent. The top 5 highest expressing genes in the midterm are corroborated by the Glimma visualization of the DESeq data by sorting the logCPM column. In the midterm the correlation between condition groups were discussed, where it was determined that all groups are similar but there is more variation between groups than within. This is confirmed by the trees, where the Euclidean and Spearman correlation distances show greater distance between the nodes that connect the two different groups and the nodes that connect the variables within the aboral and oral groups. However, the trees reveal that in terms of Euclidean distance, the oral group is all the same for the most part, while in the aboral group, aboral1 is noticeably different from the rest of the aboral group. This is interesting and warrants investigation into why that is. A tree of the genes themselves, as seen above, is too cluttered to meaningfully discuss any correlations between genes, but in both one can observe a slight separation of the genes into groups, which imply that some genes are related to processes or pathways related to the individual aboral/oral conditions. In the midterm, we were tasked to find the most and least variable genes. Unsurprisingly, in the Glimma plot, the least variable genes are all in the center of the plot, where the fold change is 0 and the logCPM is between 4-6. This shows they truly don't vary and are likely the group of housekeeping genes. The most variable genes found in the midterm, however, are all downregulated in the Glimma plot, with a high logCPM, save for ML174731a which was neither up or down regulated. This would definitely necessitate some type of investigation, as it seems like these samples may have been taken from developing Mnemiopsis embryos based on the housekeeping genes. Personally, I would run more experiments and do further research on this set of more variable genes, as this finding was very surprising.
